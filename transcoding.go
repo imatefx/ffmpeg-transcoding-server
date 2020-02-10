@@ -10,7 +10,7 @@ package main
 import (
 	"flag"
 	"github.com/BurntSushi/toml"
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 func main() {
