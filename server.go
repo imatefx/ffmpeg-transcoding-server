@@ -1,30 +1,31 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"github.com/BurntSushi/toml"
-	log "github.com/sirupsen/logrus"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
-	el "github.com/plutov/echo-logrus"
 	"github.com/imatefx/transcoding/client"
 	"github.com/imatefx/transcoding/ffmpeg"
 	"github.com/labstack/echo"
 	mw "github.com/labstack/echo/middleware"
+	el "github.com/plutov/echo-logrus"
+	"github.com/sevenNt/echo-pprof"
+	log "github.com/sirupsen/logrus"
 	"github.com/thoas/stats"
+	"io"
 	"io/ioutil"
 	"net/http"
-	"net/http/pprof"
+	//"net/http/pprof"
 	"os"
-	"io"
 	"strconv"
-	"errors"
 )
 
-func TranscodeJsonPost(awsConfig AwsConfig, conversions map[string]FfmpegConversion) echo.HandlerFunc {
-	fn := func(c *echo.Context) error {
+func TranscodeJsonPost(awsConfig AwsConfig, conversions map[string]FfmpegConversion) func(c echo.Context) error {
+	fn := func(c echo.Context) error {
 		request := &client.TranscodeRequest{}
 		if err := c.Bind(request); err != nil {
 			return err //return Unsupported Media Type or BadRequest
@@ -192,12 +193,12 @@ func TranscodeSQS(config AwsConfig, conversions map[string]FfmpegConversion) sqs
 }
 */
 
-func TranscodeGet(c *echo.Context) error {
-	return c.File("./public/views/transcode.html", "", false)
+func TranscodeGet(c echo.Context) error {
+	return c.File("./public/views/transcode.html")
 }
 
 func TranscodePost(conversions map[string]FfmpegConversion) echo.HandlerFunc {
-	fn := func(c *echo.Context) error {
+	fn := func(c echo.Context) error {
 		//The 0 here is important because it forces the file
 		//to be written to disk, causing us to cast it to os.File
 		c.Request().ParseMultipartForm(0)
@@ -216,7 +217,12 @@ func TranscodePost(conversions map[string]FfmpegConversion) echo.HandlerFunc {
 		}
 		defer os.Remove(output.Name())
 
-		conversion, exists := conversions[c.Form("type")]
+		conversion, exists := conversions[c.FormValue("type")]
+
+		log.WithFields(log.Fields{
+			"conversionScale": conversion.Scale,
+		}).Debug("-----------------------Test.")
+
 		if !exists {
 			return c.String(http.StatusBadRequest, "Not a valid transcoding type.")
 		}
@@ -229,15 +235,16 @@ func TranscodePost(conversions map[string]FfmpegConversion) echo.HandlerFunc {
 			return err
 		}
 
-		c.Response().Header().Set(echo.ContentType, "video/mp4")
+		c.Response().Header().Set(echo.HeaderContentType, "video/mp4")
 		fi, err := output.Stat()
 		if err != nil {
 			c.String(http.StatusInternalServerError, "Error retrieving size of file.")
 			return err
 		}
-		c.Response().Header().Set(echo.ContentLength, strconv.FormatInt(fi.Size(), 10))
+		c.Response().Header().Set(echo.HeaderContentLength, strconv.FormatInt(fi.Size(), 10))
 
-		if err := c.File(output.Name(), "output.mp4", true); err != nil {
+		//if err := c.File(output.Name(), "output.mp4", true); err != nil {
+		if err := c.File(output.Name()); err != nil {
 			c.String(http.StatusInternalServerError, "Error sending file.")
 			return err
 		}
@@ -247,15 +254,26 @@ func TranscodePost(conversions map[string]FfmpegConversion) echo.HandlerFunc {
 	return fn
 }
 
-func configHandler(config Config) http.Handler {
-	fn := func(w http.ResponseWriter, r *http.Request) {
-		encoder := toml.NewEncoder(w)
+func configHandler(config Config) echo.HandlerFunc {
+
+	fn := func(c echo.Context) error {
+
+		encoder := toml.NewEncoder(c.Response().Writer)
 		if err := encoder.Encode(config); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return c.String(http.StatusInternalServerError, "Error parsing config file.")
+			//http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
-		w.WriteHeader(http.StatusOK)
+		//w.WriteHeader(http.StatusOK)
+
+		//c.Response().Header().Set(echo.HeaderContentType, echo.MIMEApplicationJSONCharsetUTF8)
+		//c.Response().WriteHeader(http.StatusOK)
+		return toml.NewEncoder(c.Response()).Encode(config)
+		//return json.NewEncoder(c.Response()).Encode(encoder)
+
+		//return c.File(encoder.Encode(config))
 	}
-	return http.HandlerFunc(fn)
+
+	return fn
 }
 
 func StartServer(config Config) {
@@ -265,22 +283,29 @@ func StartServer(config Config) {
 
 	// Echo instance
 	e := echo.New()
+
 	//auto creating an index page for the directory
-	e.AutoIndex(true)
+	//e.AutoIndex(true)
+
 	//enable some helpful debug settings
 	if debug {
 		log.SetLevel(log.DebugLevel)
-		e.SetDebug(debug)
+		e.Debug = debug
 	}
 	// https://github.com/thoas/stats
 	s := stats.New()
 
 	// Middleware
+
+	el.Logger = log.New()
+	e.Logger = el.GetEchoLogger()
+	//e.Use(el.Hook())
+
 	e.Use(
-		el.New(),
+		el.Hook(),
 		mw.Recover(),
 		mw.Gzip(),
-		s.Handler,
+		//s.Handler,
 	)
 
 	/*
@@ -288,42 +313,43 @@ func StartServer(config Config) {
 	*   The following are some high level administration routes.
 	 */
 	admin := e.Group("/admin")
-	admin.Get("", func(c *echo.Context) error {
-		return c.File("./public/views/admin.html", "", false)
+	admin.GET("", func(c echo.Context) error {
+		return c.File("./public/views/admin.html")
 	})
 	//ping-pong
-	admin.Get("/ping", func(c *echo.Context) error {
+	admin.GET("/ping", func(c echo.Context) error {
 		return c.String(http.StatusOK, "pong")
 	})
-	admin.Get("/stats", func(c *echo.Context) error {
+	admin.GET("/stats", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, s.Data())
 	})
 	// Route to see the configuration we are using
-	admin.Get("/config", configHandler(config))
+	admin.GET("/config", configHandler(config))
 	//pprof
-	admin.Get("/pprof", http.HandlerFunc(pprof.Index))
-	admin.Get("/pprof/heap", pprof.Handler("heap").ServeHTTP)
-	admin.Get("/pprof/goroutine", pprof.Handler("goroutine").ServeHTTP)
-	admin.Get("/pprof/block", pprof.Handler("block").ServeHTTP)
-	admin.Get("/pprof/threadcreate", pprof.Handler("threadcreate").ServeHTTP)
-	admin.Get("/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
-	admin.Get("/pprof/profile", http.HandlerFunc(pprof.Profile))
-	admin.Get("/pprof/symbol", http.HandlerFunc(pprof.Symbol))
-	admin.Get("/pprof/trace", http.HandlerFunc(pprof.Trace))
+	echopprof.Wrap(e)
+	//admin.GET("/pprof", echopprof echo.HandlerFunc(pprof.Index))
+	//admin.GET("/pprof/heap", pprof.Handler("heap").ServeHTTP)
+	//admin.GET("/pprof/goroutine", pprof.Handler("goroutine").ServeHTTP)
+	//admin.GET("/pprof/block", pprof.Handler("block").ServeHTTP)
+	//admin.GET("/pprof/threadcreate", pprof.Handler("threadcreate").ServeHTTP)
+	//admin.GET("/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
+	//admin.GET("/pprof/profile", http.HandlerFunc(pprof.Profile))
+	//admin.GET("/pprof/symbol", http.HandlerFunc(pprof.Symbol))
+	//admin.GET("/pprof/trace", http.HandlerFunc(pprof.Trace))
 
 	/*
 	*   View routes
 	*   The following are the view routes
 	 */
-	e.Get("/transcode", TranscodeGet)
-	e.Post("/transcode", TranscodePost(config.Ffmpeg.Conversions))
+	e.GET("/transcode", TranscodeGet)
+	e.POST("/transcode", TranscodePost(config.Ffmpeg.Conversions))
 
 	/*
 	*   API routes
 	*   The following are the API routes
 	 */
 	g := e.Group("/api")
-	g.Post("/transcode", TranscodeJsonPost(config.Aws, config.Ffmpeg.Conversions))
+	g.POST("/transcode", TranscodeJsonPost(config.Aws, config.Ffmpeg.Conversions))
 
 	// Start server
 	log.WithFields(log.Fields{
@@ -333,5 +359,5 @@ func StartServer(config Config) {
 	for _, route := range e.Routes() {
 		log.Info(route.Method + " " + route.Path)
 	}
-	e.Run(hostname)
+	e.Start(hostname)
 }
