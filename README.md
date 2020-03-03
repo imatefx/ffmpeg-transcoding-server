@@ -4,8 +4,8 @@
 
 ```
 brew install ffmpeg
-go get github.com/fzakaria/transcoding
-go install github.com/fzakaria/transcoding
+go get github.com/imatefx/transcoding
+go install github.com/imatefx/transcoding
 #Assumes $GOPATH/bin is on your $PATH 
 transcoding --config ./configs/prod-us-east-1.toml
 ```
@@ -43,19 +43,24 @@ http -f POST http://localhost:8080/transcode input@~/Downloads/sample.mp4 type=4
 The server has a tighter integration with performing Transcoding from files saved in S3 and writting them back out to S3.
 The route available is *POST* `/api/transcode`
 
-You can specify a samlpe request based on the following schema:
+You can specify a sample request based on the following schema:
 
 ```    
 {
-		"input": {
-			"bucket": "slinger-test",
-			"key": "input.mp4"
-		},
-		"output": {
-			"bucket": "slinger-test",
-			"key": "output.mp4"
-		},
-		"type" : "320p"
+	"input": {
+		"bucket": "videobucket-test",
+		"key": "input1.mp4"
+	},
+	"output": {
+		"bucket": "videobucket-test",
+		"key": "output1.mp4"
+	},
+	"type": "360p",
+	"webHook": "http://data-return-server:8081",
+	"AwsRegion": "ap-south-1",
+	"AwsAKId": "AWS_Access_Key",
+	"AwsSecretKey": "AWS_Secret_Key",
+	"AwsToken": ""
 }
 ```
 **THE SERVER MUST HAVE ACCESS TO THE INPUT & OUTPUT BUCKET - SEE AWS BUCKET POLICIES**
@@ -65,8 +70,8 @@ To make bootstrapping easier for variety of platforms. A Dockerfile is provided 
 
 ```
 #The following commands assumes you are in the package
-docker build -t transcode-server .
-docker run -p 8080:8080 transcode-server   
+docker build -t ffmpeg-transcoding-server .
+docker run -p 8080:8080 ffmpeg-transcoding-server   
 #You can now access the server at localhost:8080
 #or if you ar on mac osx `docker-machine ip default`
 ```
