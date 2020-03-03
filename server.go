@@ -1,15 +1,16 @@
 package main
 
 import (
+	"./client"
+	"./ffmpeg"
 	"errors"
 	"fmt"
 	"github.com/BurntSushi/toml"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/imatefx/transcoding/client"
-	"github.com/imatefx/transcoding/ffmpeg"
 	"github.com/labstack/echo"
 	mw "github.com/labstack/echo/middleware"
 	el "github.com/plutov/echo-logrus"
@@ -31,7 +32,17 @@ func TranscodeJsonPost(awsConfig AwsConfig, conversions map[string]FfmpegConvers
 			return err //return Unsupported Media Type or BadRequest
 		}
 
-		svc := s3.New(session.New(&aws.Config{Region: aws.String(awsConfig.Region)}))
+		//svc := s3.New(session.New(&aws.Config{Region: aws.String(awsConfig.Region)}))
+		svc := s3.New(session.New(&aws.Config{
+			Region: aws.String(request.AwsRegion),
+			Credentials: credentials.NewStaticCredentials(request.AwsAKId, request.AwsSecretKey, request.AwsToken),
+		}))
+
+		log.WithFields(log.Fields{
+			"request.Input.Bucket":   request.Input.Bucket,
+			"request.Input.Key":    request.Input.Key,
+		}).Info("Fetching object from S3.")
+
 		getObjectParams := &s3.GetObjectInput{
 			Bucket: aws.String(request.Input.Bucket),
 			Key:    aws.String(request.Input.Key),
@@ -42,7 +53,7 @@ func TranscodeJsonPost(awsConfig AwsConfig, conversions map[string]FfmpegConvers
 				"error":   err.Error(),
 				"code":    err.(awserr.Error).Code(),
 				"message": err.(awserr.Error).Message(),
-			}).Warn("Issue occured fetching object.")
+			}).Warn("Issue occurred fetching object.")
 			return err
 		}
 		input, err := ioutil.TempFile("", "s3Input")
@@ -94,6 +105,11 @@ func TranscodeJsonPost(awsConfig AwsConfig, conversions map[string]FfmpegConvers
 			}).Error("Error putting s3 output temporary file.")
 			return err1
 		}
+		log.WithFields(log.Fields{
+			"webHook": request.WebHook,
+		}).Debug("Webhook data........... ");
+
+		var _, _= http.Get(request.WebHook)
 		return nil
 	}
 	return fn

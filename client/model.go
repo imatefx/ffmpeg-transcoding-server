@@ -16,9 +16,15 @@ package client
 	}
 */
 type TranscodeRequest struct {
-	Input     S3File `json:"input"`
-	Output    S3File `json:"output"`
-	Type      string `json:"type"`
+	Input			S3File `json:"input"`
+	Output			S3File `json:"output"`
+	Type			string `json:"type"`
+	WebHook			string `json:"webHook"`
+	AwsRegion 		string `json:"AwsRegion"`
+	AwsAKId 		string `json:"AwsAKId"`
+	AwsSecretKey 	string `json:"AwsSecretKey"`
+	AwsToken 		string `json:"AwsToken"`
+
 }
 
 type S3File struct {

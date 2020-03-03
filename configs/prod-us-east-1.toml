@@ -7,11 +7,16 @@ port = 8080
 debug = true
 
 [aws]
-region = "us-east-1"
+region = "ap-south-1"
 queue_url = "https://sqs.us-east-1.amazonaws.com/082777227827/my-test-queue"
 
 [ffmpeg]
 	
+	[ffmpeg.conversions.HLS1]
+     scale = "-1:720"
+     video_kilobit_rate = 1000
+     audio_kilobit_rate = 128
+
 	[ffmpeg.conversions.720p]
 	 scale = "-1:720"
 	 video_kilobit_rate = 1000

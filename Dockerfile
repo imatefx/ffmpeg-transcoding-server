@@ -15,44 +15,57 @@
 #            -i sample.mp4 \
 #            -o output.mp4
 
-FROM jrottenberg/ffmpeg
-MAINTAINER Farid Zakaria
+FROM jrottenberg/ffmpeg:alpine
+MAINTAINER Stalin Pereira
 
 # We now need to install Go & GCC
 # Taken from:
 # https://github.com/docker-library/golang/blob/1eab0db63794152b4516dbcb70270eb9dced4cbd/1.5/Dockerfile
 # gcc for cgo
-RUN yum -y update && yum -y install \
-		g++ \
-		gcc \
-		libc6-dev \
-		make \
-		git
+#RUN yum -y update && yum -y install \
+#		g++ \
+#		gcc \
+#		libc6-dev \
+#		make \
+#		git
+#
+#ENV GOLANG_VERSION 1.5.3
+#ENV GOLANG_DOWNLOAD_URL https://golang.org/dl/go$GOLANG_VERSION.linux-amd64.tar.gz
+#ENV GOLANG_DOWNLOAD_SHA256 43afe0c5017e502630b1aea4d44b8a7f059bf60d7f29dfd58db454d4e4e0ae53
+#
+#RUN curl -fsSL "$GOLANG_DOWNLOAD_URL" -o golang.tar.gz \
+#	&& echo "$GOLANG_DOWNLOAD_SHA256  golang.tar.gz" | sha256sum -c - \
+#	&& tar -C /usr/local -xzf golang.tar.gz \
+#	&& rm golang.tar.gz
+#
+#ENV GOPATH /go
+#ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
+#
+## Create a directory inside the container to store all our application and then make it the working directory.
+#RUN mkdir -p /go/src/github.com/imatefx/transcoding
+#WORKDIR /go/src/github.com/imatefx/transcoding
+#
+## Copy the application directory (where the Dockerfile lives) into the container.
+#COPY . /go/src/github.com/imatefx/transcoding
+#
+## Fetch necessary dependencies
+#RUN go get github.com/imatefx/transcoding/
+#
+## Install out application
+#RUN go install github.com/imatefx/transcoding
 
-ENV GOLANG_VERSION 1.5.3
-ENV GOLANG_DOWNLOAD_URL https://golang.org/dl/go$GOLANG_VERSION.linux-amd64.tar.gz
-ENV GOLANG_DOWNLOAD_SHA256 43afe0c5017e502630b1aea4d44b8a7f059bf60d7f29dfd58db454d4e4e0ae53
+#RUN mkdir -p /app
 
-RUN curl -fsSL "$GOLANG_DOWNLOAD_URL" -o golang.tar.gz \
-	&& echo "$GOLANG_DOWNLOAD_SHA256  golang.tar.gz" | sha256sum -c - \
-	&& tar -C /usr/local -xzf golang.tar.gz \
-	&& rm golang.tar.gz
+#ENV PATH /app:$PATH
 
-ENV GOPATH /go
-ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
+#WORKDIR /app
 
-# Create a directory inside the container to store all our application and then make it the working directory.
-RUN mkdir -p /go/src/github.com/fzakaria/transcoding
-WORKDIR /go/src/github.com/fzakaria/transcoding
+RUN apk update && apk add ca-certificates && rm -rf /var/cache/apk/*
 
-# Copy the application directory (where the Dockerfile lives) into the container.
-COPY . /go/src/github.com/fzakaria/transcoding
+COPY transcoding .
+COPY configs configs
 
-# Fetch necessary dependencies
-RUN go get github.com/fzakaria/transcoding/
-
-# Install out application
-RUN go install github.com/fzakaria/transcoding
+#COPY . ./configs/prod-us-east-1.toml
 
 # Set the PORT environment variable inside the container
 ENV PORT 8080
@@ -61,5 +74,10 @@ ENV PORT 8080
 EXPOSE 8080
 
 
-ENTRYPOINT ["transcoding"]
-CMD ["--config", "/go/src/github.com/fzakaria/transcoding/configs/prod-us-east-1.toml"]
+ENTRYPOINT ["./transcoding"]
+#ENTRYPOINT ["ls"]
+#ENTRYPOINT ["ls"]
+CMD ["--config", "./configs/prod-us-east-1.toml"]
+#CMD ["-alhR"]
+
+#CMD ./transcoding --config /app/configs/prod-us-east-1.toml
