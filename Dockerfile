@@ -62,7 +62,7 @@ MAINTAINER Stalin Pereira
 
 RUN apk update && apk add ca-certificates && rm -rf /var/cache/apk/*
 
-COPY transcoding .
+COPY bin/ffmpeg-transcoding-server .
 COPY configs configs
 
 #COPY . ./configs/prod-us-east-1.toml
@@ -74,7 +74,7 @@ ENV PORT 8080
 EXPOSE 8080
 
 
-ENTRYPOINT ["./transcoding"]
+ENTRYPOINT ["./ffmpeg-transcoding-server"]
 #ENTRYPOINT ["ls"]
 #ENTRYPOINT ["ls"]
 CMD ["--config", "./configs/prod-us-east-1.toml"]
