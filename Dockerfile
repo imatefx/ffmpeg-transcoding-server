@@ -64,6 +64,7 @@ RUN apk update && apk add ca-certificates && rm -rf /var/cache/apk/*
 
 COPY bin/ffmpeg-transcoding-server .
 COPY configs configs
+COPY public public
 
 #COPY . ./configs/prod-us-east-1.toml
 
